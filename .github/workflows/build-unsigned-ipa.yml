@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Install toolchain
-        run: brew install meson ninja pkg-config xcodegen
+        run: brew install meson ninja pkg-config xcodegen ldid
 
       - name: Clone Husk (slirp patch + StikJIT.xcframework)
         run: git clone --depth 1 https://github.com/Leviidev/Husk "$HOME/Husk"
@@ -72,6 +72,14 @@ jobs:
             CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
             PROVISIONING_PROFILE_SPECIFIER="" \
             build
+
+      - name: Pseudo-sign with entitlements (get-task-allow for JIT)
+        run: |
+          APP=$(find build/DerivedData/Build/Products -name "*.app" -maxdepth 3 | head -1)
+          EXE="$APP/$(basename "$APP" .app)"
+          echo "Pseudo-signature de $EXE avec ios/WindowsiOS.entitlements"
+          ldid -Sios/WindowsiOS.entitlements "$EXE"
+          ldid -e "$EXE" | grep -A1 get-task-allow
 
       - name: Package unsigned IPA
         run: |
