@@ -1,0 +1,66 @@
+name: Build unsigned IPA
+
+# Construit l'IPA non signé de WindowsiOS sur un runner macOS :
+# dépendances iOS cross-compilées (libffi, glib, libslirp) via le script
+# d'origine, bibliothèque moteur libwinvm.a via `make ios-lib`, projet
+# Xcode généré par XcodeGen depuis ios/project.yml, puis xcodebuild
+# sans signature et empaquetage Payload/*.ipa.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build-unsigned-ipa:
+    name: Unsigned IPA
+    runs-on: macos-15
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install toolchain
+        run: brew install meson ninja pkg-config xcodegen
+
+      - name: Clone Husk (slirp patch + StikJIT.xcframework)
+        run: git clone --depth 1 https://github.com/Leviidev/Husk "$HOME/Husk"
+
+      - name: Build iOS dependencies (libffi, glib, libslirp)
+        run: |
+          export HUSK_REF="$HOME/Husk"
+          scripts/build_ios_deps.sh
+
+      - name: Build engine library (libwinvm.a)
+        run: make ios-lib
+
+      - name: Generate Xcode project
+        run: |
+          cd ios
+          xcodegen generate
+
+      - name: Build app (no signing)
+        run: |
+          xcodebuild -project ios/WindowsiOS.xcodeproj \
+            -scheme WindowsiOS \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build/DerivedData \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" DEVELOPMENT_TEAM="" \
+            PROVISIONING_PROFILE_SPECIFIER="" \
+            build
+
+      - name: Package unsigned IPA
+        run: |
+          APP=$(find build/DerivedData/Build/Products -name "*.app" -maxdepth 3 | head -1)
+          echo "App: $APP"
+          rm -rf Payload && mkdir Payload
+          cp -R "$APP" Payload/
+          zip -r WindowsiOS-unsigned.ipa Payload
+          ls -lh WindowsiOS-unsigned.ipa
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: WindowsiOS-unsigned-ipa
+          path: WindowsiOS-unsigned.ipa
+          if-no-files-found: error
