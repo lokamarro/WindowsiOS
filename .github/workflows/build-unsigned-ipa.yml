@@ -36,16 +36,24 @@ jobs:
 
       - name: Retirer le support charnière iPhone Duo (build iPhone standard)
         run: |
-          rm ios/Sources/HingeSensorView.swift
           python3 - <<'PY'
           import re
-          p = "ios/Sources/SessionView.swift"
+          # HingeSensorView.swift contient aussi PointerController et
+          # SceneOrientationController (utilisés par d'autres vues) : on ne
+          # retire que la partie charnière, en fin de fichier.
+          p = "ios/Sources/HingeSensorView.swift"
           src = open(p).read()
+          idx = src.index("final class HingeObserverViewController")
+          open(p, "w").write(src[:idx].rstrip() + "\n")
+          assert "PointerController" in open(p).read()
+          # Retrait de l'usage de HingeSensorView dans SessionView.swift
+          p2 = "ios/Sources/SessionView.swift"
+          src = open(p2).read()
           pat = re.compile(r" *// Invisible UIKit host for iOS 27\.1 UIHingeInteraction.*?\.allowsHitTesting\(false\)\n\n", re.S)
           src2, n = pat.subn("", src)
           assert n == 1 and "HingeSensorView" not in src2, "bloc charnière introuvable"
-          open(p, "w").write(src2)
-          print("Bloc charnière retiré de SessionView.swift")
+          open(p2, "w").write(src2)
+          print("Partie charnière retirée ; contrôleurs partagés conservés")
           PY
 
       - name: Generate Xcode project
