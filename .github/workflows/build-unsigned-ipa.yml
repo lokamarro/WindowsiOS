@@ -33,6 +33,35 @@ jobs:
       - name: Build engine library (libwinvm.a)
         run: make ios-lib
 
+
+      - name: Add CI stub for iOS 27 hinge API
+        run: |
+          cat > ios/Sources/CIHingeStub.swift <<'SWIFT'
+          import UIKit
+
+          // Stub CI uniquement : UIHingeInteraction est une API du SDK iOS 27,
+          // absente du Xcode du runner. Le code de l'app protège déjà l'usage
+          // à l'exécution (NSClassFromString + #available(iOS 27.1)), donc
+          // cette déclaration ne sert qu'à satisfaire le compilateur.
+          @available(iOS 27.1, *)
+          final class UIHingeInteraction: NSObject, UIInteraction {
+              struct HingeUpdate {
+                  struct Hinge {
+                      enum Status: Int { case unknown = 0 }
+                      var status: Status
+                      var angle: CGFloat
+                  }
+                  var hinge: Hinge?
+              }
+              private let handler: (UIHingeInteraction, HingeUpdate) -> Void
+              init(_ handler: @escaping (UIHingeInteraction, HingeUpdate) -> Void) {
+                  self.handler = handler
+              }
+              func willMove(to view: UIView?) {}
+              func didMove(to view: UIView?) {}
+          }
+          SWIFT
+
       - name: Generate Xcode project
         run: |
           cd ios
