@@ -34,33 +34,19 @@ jobs:
         run: make ios-lib
 
 
-      - name: Add CI stub for iOS 27 hinge API
+      - name: Retirer le support charnière iPhone Duo (build iPhone standard)
         run: |
-          cat > ios/Sources/CIHingeStub.swift <<'SWIFT'
-          import UIKit
-
-          // Stub CI uniquement : UIHingeInteraction est une API du SDK iOS 27,
-          // absente du Xcode du runner. Le code de l'app protège déjà l'usage
-          // à l'exécution (NSClassFromString + #available(iOS 27.1)), donc
-          // cette déclaration ne sert qu'à satisfaire le compilateur.
-          @available(iOS 27.1, *)
-          final class UIHingeInteraction: NSObject, UIInteraction {
-              struct HingeUpdate {
-                  struct Hinge {
-                      enum Status: Int { case unknown = 0 }
-                      var status: Status
-                      var angle: CGFloat
-                  }
-                  var hinge: Hinge?
-              }
-              private let handler: (UIHingeInteraction, HingeUpdate) -> Void
-              init(_ handler: @escaping (UIHingeInteraction, HingeUpdate) -> Void) {
-                  self.handler = handler
-              }
-              func willMove(to view: UIView?) {}
-              func didMove(to view: UIView?) {}
-          }
-          SWIFT
+          rm ios/Sources/HingeSensorView.swift
+          python3 - <<'PY'
+          import re
+          p = "ios/Sources/SessionView.swift"
+          src = open(p).read()
+          pat = re.compile(r" *// Invisible UIKit host for iOS 27\.1 UIHingeInteraction.*?\.allowsHitTesting\(false\)\n\n", re.S)
+          src2, n = pat.subn("", src)
+          assert n == 1 and "HingeSensorView" not in src2, "bloc charnière introuvable"
+          open(p, "w").write(src2)
+          print("Bloc charnière retiré de SessionView.swift")
+          PY
 
       - name: Generate Xcode project
         run: |
